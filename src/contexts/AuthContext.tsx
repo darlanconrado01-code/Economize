@@ -44,6 +44,7 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const [currentUser, setCurrentUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
     // Cria documento do usuário no Firestore se não existir
     const createUserDocument = async (user: User, displayName?: string) => {
@@ -82,14 +83,35 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         await signOut(auth);
     };
 
-    // Observer de estado de autenticação
+    // Observer de estado de autenticação com timeout
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, (user) => {
-            setCurrentUser(user);
-            setLoading(false);
-        });
+        try {
+            const unsubscribe = onAuthStateChanged(auth, (user) => {
+                setCurrentUser(user);
+                setLoading(false);
+            }, (err) => {
+                console.error('Erro de autenticação:', err);
+                setError(err.message);
+                setLoading(false);
+            });
 
-        return unsubscribe;
+            // Timeout de segurança - se não carregar em 10s, mostra erro
+            const timeout = setTimeout(() => {
+                if (loading) {
+                    setError('Timeout ao conectar com Firebase. Verifique as configurações.');
+                    setLoading(false);
+                }
+            }, 10000);
+
+            return () => {
+                unsubscribe();
+                clearTimeout(timeout);
+            };
+        } catch (err: any) {
+            console.error('Erro ao inicializar Firebase:', err);
+            setError(err.message || 'Erro ao inicializar Firebase');
+            setLoading(false);
+        }
     }, []);
 
     const value: AuthContextType = {
@@ -101,9 +123,34 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         logout,
     };
 
+    // Mostra erro se houver
+    if (error) {
+        return (
+            <div className="min-h-screen bg-red-50 flex items-center justify-center p-4">
+                <div className="bg-white p-6 rounded-lg shadow-lg max-w-md text-center">
+                    <h2 className="text-red-600 font-bold text-xl mb-2">Erro de Configuração</h2>
+                    <p className="text-gray-600 mb-4">{error}</p>
+                    <p className="text-sm text-gray-500">Verifique se as variáveis de ambiente do Firebase estão configuradas corretamente.</p>
+                </div>
+            </div>
+        );
+    }
+
+    // Mostra loading enquanto carrega
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center">
+                <div className="text-center">
+                    <div className="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                    <p className="text-white font-medium">Conectando...</p>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <AuthContext.Provider value={value}>
-            {!loading && children}
+            {children}
         </AuthContext.Provider>
     );
 };
