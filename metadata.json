@@ -1,0 +1,7 @@
+{
+  "name": "Economize!",
+  "description": "A modern personal finance management app focused on credit card tracking with AI-powered categorization and bulk entry processing.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
